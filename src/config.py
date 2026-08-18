@@ -11,3 +11,5 @@ if not GEMINI_API_KEY:
         "GEMINI_API_KEY not found. Please create a .env file in the project "
         "root with: GEMINI_API_KEY=your_key_here"
     )
+
+GEMINI_MODEL_NAME = "gemini-flash-latest"
