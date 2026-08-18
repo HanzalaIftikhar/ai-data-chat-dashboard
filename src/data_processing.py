@@ -118,3 +118,117 @@ def process_uploaded_file(uploaded_file):
     logger.info(f"Detected columns: {detected_columns}")
 
     return normalized_df, detected_columns
+
+def calculate_total_revenue(df):
+    """
+    Returns the total revenue across all rows.
+    Uses the 'revenue' column if present; otherwise calculates it
+    from quantity * unit_price (needed for platforms like Shopify
+    where raw exports only have per-unit price).
+    """
+    if "revenue" in df.columns:
+        return round(df["revenue"].sum(), 2)
+    elif "quantity" in df.columns and "unit_price" in df.columns:
+        return round((df["quantity"] * df["unit_price"]).sum(), 2)
+    else:
+        return None
+
+
+def get_top_products(df, top_n=3):
+    """
+    Returns the top N products by total revenue, as a list of dicts:
+    [{"product": "Chair", "revenue": 1234.56}, ...]
+    """
+    if "product_name" not in df.columns:
+        return []
+
+    working_df = df.copy()
+
+    if "revenue" not in working_df.columns:
+        if "quantity" in working_df.columns and "unit_price" in working_df.columns:
+            working_df["revenue"] = working_df["quantity"] * working_df["unit_price"]
+        else:
+            return []
+
+    grouped = (
+        working_df.groupby("product_name")["revenue"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(top_n)
+    )
+
+    return [{"product": name, "revenue": round(value, 2)} for name, value in grouped.items()]
+
+
+def detect_notable_insight(df):
+    """
+    Tries to find a "declining product" insight by comparing the first
+    half of the date range against the second half. If order_date isn't
+    available, falls back to reporting the lowest-selling product instead.
+    """
+    has_date = "order_date" in df.columns
+    has_revenue_data = "revenue" in df.columns or (
+        "quantity" in df.columns and "unit_price" in df.columns
+    )
+
+    if not has_revenue_data or "product_name" not in df.columns:
+        return None
+
+    working_df = df.copy()
+    if "revenue" not in working_df.columns:
+        working_df["revenue"] = working_df["quantity"] * working_df["unit_price"]
+
+    # --- Case 1: we have dates, so we can detect a declining trend ---
+    if has_date:
+        working_df["order_date"] = pd.to_datetime(working_df["order_date"], errors="coerce")
+        working_df = working_df.dropna(subset=["order_date"])
+
+        if len(working_df) >= 4:  # need enough rows to split meaningfully
+            midpoint = working_df["order_date"].median()
+            first_half = working_df[working_df["order_date"] <= midpoint]
+            second_half = working_df[working_df["order_date"] > midpoint]
+
+            first_totals = first_half.groupby("product_name")["revenue"].sum()
+            second_totals = second_half.groupby("product_name")["revenue"].sum()
+
+            comparison = first_totals.to_frame("first_half").join(
+                second_totals.to_frame("second_half"), how="inner"
+            )
+
+            if not comparison.empty:
+                comparison["pct_change"] = (
+                    (comparison["second_half"] - comparison["first_half"])
+                    / comparison["first_half"]
+                ) * 100
+                declining = comparison.sort_values("pct_change").iloc[0]
+
+                if declining["pct_change"] < 0:
+                    return {
+                        "type": "declining_product",
+                        "product": comparison.sort_values("pct_change").index[0],
+                        "pct_change": round(declining["pct_change"], 1),
+                    }
+
+    # --- Case 2: fallback when no usable dates ---
+    totals = working_df.groupby("product_name")["revenue"].sum().sort_values()
+    if not totals.empty:
+        return {
+            "type": "lowest_selling_product",
+            "product": totals.index[0],
+            "revenue": round(totals.iloc[0], 2),
+        }
+
+    return None
+
+
+def generate_summary(df):
+    """
+    Main entry point for Part 2: combines revenue, top products, and
+    a notable insight into a single summary dictionary that app.py
+    can display right after file upload.
+    """
+    return {
+        "total_revenue": calculate_total_revenue(df),
+        "top_products": get_top_products(df),
+        "insight": detect_notable_insight(df),
+    }

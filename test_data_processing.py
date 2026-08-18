@@ -18,3 +18,11 @@ df, detected = process_uploaded_file(f)
 
 print("Detected columns:", detected)
 print(df.head(3))
+
+from src.data_processing import generate_summary
+
+summary = generate_summary(df)
+print("\n--- Summary ---")
+print("Total Revenue:", summary["total_revenue"])
+print("Top Products:", summary["top_products"])
+print("Insight:", summary["insight"])
