@@ -179,6 +179,13 @@ def ask_question(df, summary, user_question, chat_history=None):
 
     except Exception as e:
         logger.error(f"Groq API call failed: {e}")
-        raise RuntimeError(
-            "Couldn't get a response from the AI right now. Please try again in a moment."
-        )
+        error_text = str(e).lower()
+
+        if "rate limit" in error_text or "429" in error_text or "quota" in error_text:
+            raise RuntimeError(
+                "We're getting a lot of requests right now. Please wait about 20 seconds and try again."
+            )
+        else:
+            raise RuntimeError(
+                "Couldn't get a response from the AI right now. Please try again in a moment."
+            )

@@ -1,11 +1,17 @@
 import streamlit as st
-from src.data_processing import process_uploaded_file, generate_summary
-from src.ai_engine import ask_question
-from src.logger_config import setup_logging
-
-setup_logging()
 
 st.set_page_config(page_title="E-commerce Sales Chat Assistant", page_icon="📊", layout="wide")
+
+try:
+    from src.data_processing import process_uploaded_file, generate_summary
+    from src.ai_engine import ask_question
+    from src.logger_config import setup_logging
+
+    setup_logging()
+except ValueError as e:
+    st.error(f"⚠️ Setup issue: {e}")
+    st.info("Please check your `.env` file and make sure GROQ_API_KEY is set correctly.")
+    st.stop()
 
 st.title("📊 E-commerce Sales Chat Assistant")
 st.caption("Upload your Shopify, Etsy, Amazon, or sales export and chat with your data.")
@@ -21,15 +27,23 @@ if "summary" not in st.session_state:
 # --- File upload ---
 uploaded_file = st.file_uploader("Upload your sales file", type=["csv", "xlsx", "xls"])
 
-if uploaded_file is not None and st.session_state.df is None:
+if "uploaded_filename" not in st.session_state:
+    st.session_state.uploaded_filename = None
+
+is_new_file = uploaded_file is not None and uploaded_file.name != st.session_state.uploaded_filename
+
+if is_new_file:
     with st.spinner("Reading and analyzing your data..."):
         try:
             df, detected_columns = process_uploaded_file(uploaded_file)
             summary = generate_summary(df)
             st.session_state.df = df
             st.session_state.summary = summary
+            st.session_state.uploaded_filename = uploaded_file.name
+            st.session_state.messages = []  # reset chat for the new file
         except ValueError as e:
             st.error(str(e))
+
 
 # --- Show summary + chat only after a file is successfully loaded ---
 if st.session_state.df is not None:
