@@ -118,7 +118,8 @@ def ask_question(df, summary, user_question, chat_history=None):
     """
     Sends the user's question to the AI. If the AI needs exact data,
     it requests the query_dataframe tool, we run it, and send the
-    result back so the AI can explain it in plain business language.
+    result back. This can loop a few times if the AI needs multiple
+    calculations before it can give a final answer.
     """
     try:
         messages = [{"role": "system", "content": build_context_prompt(df, summary)}]
@@ -128,17 +129,21 @@ def ask_question(df, summary, user_question, chat_history=None):
 
         messages.append({"role": "user", "content": user_question})
 
-        response = client.chat.completions.create(
-            model=GROQ_MODEL_NAME,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-        )
+        max_iterations = 5
 
-        response_message = response.choices[0].message
+        for _ in range(max_iterations):
+            response = client.chat.completions.create(
+                model=GROQ_MODEL_NAME,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="auto",
+            )
 
-        # --- Case 1: AI wants to run a calculation first ---
-        if response_message.tool_calls:
+            response_message = response.choices[0].message
+
+            if not response_message.tool_calls:
+                return response_message.content
+
             messages.append({
                 "role": "assistant",
                 "content": response_message.content,
@@ -160,24 +165,17 @@ def ask_question(df, summary, user_question, chat_history=None):
                     args = json.loads(tool_call.function.arguments)
                     expression = args.get("expression", "")
                     logger.info(f"Running pandas query: {expression}")
-
                     result = run_dataframe_query(df, expression)
+                else:
+                    result = f"Error: unknown tool '{tool_call.function.name}'"
 
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": result,
-                    })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result,
+                })
 
-            # Ask again, now that the AI has the real result
-            second_response = client.chat.completions.create(
-                model=GROQ_MODEL_NAME,
-                messages=messages,
-            )
-            return second_response.choices[0].message.content
-
-        # --- Case 2: AI already knew the answer, no calculation needed ---
-        return response_message.content
+        return "I wasn't able to finish analyzing that. Could you try rephrasing your question?"
 
     except Exception as e:
         logger.error(f"Groq API call failed: {e}")

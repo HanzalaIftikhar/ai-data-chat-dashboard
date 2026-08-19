@@ -1,6 +1,9 @@
 import streamlit as st
 from src.data_processing import process_uploaded_file, generate_summary
 from src.ai_engine import ask_question
+from src.logger_config import setup_logging
+
+setup_logging()
 
 st.set_page_config(page_title="E-commerce Sales Chat Assistant", page_icon="📊", layout="wide")
 
