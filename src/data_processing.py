@@ -232,3 +232,4 @@ def generate_summary(df):
         "top_products": get_top_products(df),
         "insight": detect_notable_insight(df),
     }
+
