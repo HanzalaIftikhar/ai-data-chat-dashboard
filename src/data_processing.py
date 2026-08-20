@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 # "Product Name" (Superstore) and "product-name" (Amazon) both match.
 # ---------------------------------------------------------------------------
 COLUMN_MAPPING = {
-    "product_name": ["product name", "lineitem name", "item name", "product-name"],
+    "product_name": ["product name", "lineitem name", "item name", "product-name", "description"],
     "quantity": ["quantity", "lineitem quantity", "quantity-purchased", "qty"],
-    "unit_price": ["lineitem price", "price", "item-price", "unit price"],
-    "revenue": ["sales", "total", "item total", "order total"],
-    "order_date": ["order date", "created at", "purchase-date"],
+    "unit_price": ["lineitem price", "price", "item-price", "unit price", "unitprice"],
+    "revenue": ["sales", "total", "item total", "order total", "amount"],
+    "order_date": ["order date", "created at", "purchase-date", "invoicedate"],
     "status": ["status", "fulfillment status", "order-status", "financial status", "order status"],
 }
 
