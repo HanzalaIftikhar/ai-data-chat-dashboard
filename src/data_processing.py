@@ -18,6 +18,30 @@ COLUMN_MAPPING = {
     "status": ["status", "fulfillment status", "order-status", "financial status", "order status"],
 }
 
+# ---------------------------------------------------------------------------
+# Known non-product entries: some real-world exports mix bookkeeping/admin
+# rows (fees, manual adjustments, write-offs) into the same product-name
+# column as real merchandise. We filter these out before any product-level
+# calculations, so "top/bottom products" only reflects real items.
+# ---------------------------------------------------------------------------
+NON_PRODUCT_KEYWORDS = [
+    "amazon fee", "manual", "discount", "bad debt", "adjustment",
+    "postage", "carriage", "sample", "cancelled", "adjust bad debt",
+]
+
+
+def filter_valid_products(df):
+    """
+    Removes rows where product_name matches a known non-product/admin
+    keyword (case-insensitive), so summaries stay focused on real items.
+    """
+    if "product_name" not in df.columns:
+        return df
+
+    pattern = "|".join(NON_PRODUCT_KEYWORDS)
+    mask = ~df["product_name"].astype(str).str.lower().str.contains(pattern, na=False)
+    return df[mask]
+
 
 def load_file(uploaded_file):
     """
@@ -142,7 +166,7 @@ def get_top_products(df, top_n=3):
     if "product_name" not in df.columns:
         return []
 
-    working_df = df.copy()
+    working_df = filter_valid_products(df.copy())
 
     if "revenue" not in working_df.columns:
         if "quantity" in working_df.columns and "unit_price" in working_df.columns:
@@ -155,6 +179,32 @@ def get_top_products(df, top_n=3):
         .sum()
         .sort_values(ascending=False)
         .head(top_n)
+    )
+
+    return [{"product": name, "revenue": round(value, 2)} for name, value in grouped.items()]
+
+
+def get_bottom_products(df, bottom_n=3):
+    """
+    Returns the bottom N products by total revenue (lowest performers),
+    as a list of dicts: [{"product": "Chair", "revenue": 12.50}, ...]
+    """
+    if "product_name" not in df.columns:
+        return []
+
+    working_df = filter_valid_products(df.copy())
+
+    if "revenue" not in working_df.columns:
+        if "quantity" in working_df.columns and "unit_price" in working_df.columns:
+            working_df["revenue"] = working_df["quantity"] * working_df["unit_price"]
+        else:
+            return []
+
+    grouped = (
+        working_df.groupby("product_name")["revenue"]
+        .sum()
+        .sort_values(ascending=True)
+        .head(bottom_n)
     )
 
     return [{"product": name, "revenue": round(value, 2)} for name, value in grouped.items()]
@@ -174,7 +224,7 @@ def detect_notable_insight(df):
     if not has_revenue_data or "product_name" not in df.columns:
         return None
 
-    working_df = df.copy()
+    working_df = filter_valid_products(df.copy())
     if "revenue" not in working_df.columns:
         working_df["revenue"] = working_df["quantity"] * working_df["unit_price"]
 
@@ -230,6 +280,7 @@ def generate_summary(df):
     return {
         "total_revenue": calculate_total_revenue(df),
         "top_products": get_top_products(df),
+        "bottom_products": get_bottom_products(df),
         "insight": detect_notable_insight(df),
     }
 

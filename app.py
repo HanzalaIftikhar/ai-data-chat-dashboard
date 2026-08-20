@@ -3,7 +3,7 @@ import streamlit as st
 st.set_page_config(page_title="Sales Chat Assistant", page_icon="📊", layout="wide")
 
 try:
-    from src.data_processing import process_uploaded_file, generate_summary
+    from src.data_processing import process_uploaded_file, generate_summary, filter_valid_products
     from src.ai_engine import ask_question
     from src.logger_config import setup_logging
 
@@ -24,21 +24,19 @@ st.markdown("""
         max-width: 1100px;
     }
     div[data-testid="stMetric"] {
-        background-color: var(--secondary-background-color);
-        border: 1px solid rgba(128, 128, 128, 0.2);
+        background-color: #FFFFFF;
+        border: 1px solid #E5E9F0;
         padding: 1rem 1.2rem;
         border-radius: 12px;
         box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
     .app-subtitle {
-        opacity: 0.7;
+        color: #6B7280;
         font-size: 1.05rem;
         margin-top: -0.5rem;
     }
     .platform-badges span {
-        background-color: var(--secondary-background-color);
-        border: 1px solid rgba(128, 128, 128, 0.25);
-        color: var(--text-color);
+        background-color: #F0F2F6;
         padding: 0.3rem 0.7rem;
         border-radius: 20px;
         margin-right: 0.4rem;
@@ -94,8 +92,9 @@ if is_new_file:
     with st.spinner("Reading and analyzing your data..."):
         try:
             df, detected_columns = process_uploaded_file(uploaded_file)
+            clean_df = filter_valid_products(df)
             summary = generate_summary(df)
-            st.session_state.df = df
+            st.session_state.df = clean_df
             st.session_state.summary = summary
             st.session_state.uploaded_filename = uploaded_file.name
             st.session_state.messages = []
