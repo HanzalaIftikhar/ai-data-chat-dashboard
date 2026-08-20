@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="E-commerce Sales Chat Assistant", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Sales Chat Assistant", page_icon="📊", layout="wide")
 
 try:
     from src.data_processing import process_uploaded_file, generate_summary
@@ -13,8 +13,67 @@ except ValueError as e:
     st.info("Please check your `.env` file and make sure GROQ_API_KEY is set correctly.")
     st.stop()
 
-st.title("📊 E-commerce Sales Chat Assistant")
-st.caption("Upload your Shopify, Etsy, Amazon, or sales export and chat with your data.")
+# ---------------------------------------------------------------------------
+# Custom styling — makes the app look like a polished product, not a
+# default Streamlit template.
+# ---------------------------------------------------------------------------
+st.markdown("""
+<style>
+    .block-container {
+        padding-top: 2rem;
+        max-width: 1100px;
+    }
+    div[data-testid="stMetric"] {
+        background-color: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        padding: 1rem 1.2rem;
+        border-radius: 12px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .app-subtitle {
+        opacity: 0.7;
+        font-size: 1.05rem;
+        margin-top: -0.5rem;
+    }
+    .platform-badges span {
+        background-color: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.25);
+        color: var(--text-color);
+        padding: 0.3rem 0.7rem;
+        border-radius: 20px;
+        margin-right: 0.4rem;
+        font-size: 0.85rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# Sidebar — quick "how it works" guide and platform info
+# ---------------------------------------------------------------------------
+with st.sidebar:
+    st.markdown("### ℹ️ How it works")
+    st.markdown("""
+    1. **Upload** your sales export (CSV or Excel)
+    2. Get an **instant summary** — revenue, top products, trends
+    3. **Ask anything** about your data, in plain English
+    """)
+    st.divider()
+    st.markdown("### Works with")
+    st.markdown(
+        '<div class="platform-badges">'
+        '<span>🛍️ Shopify</span><span>🧵 Etsy</span><span>📦 Amazon</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    st.divider()
+    st.caption("AI Data Chat Dashboard — built by Hanzala")
+
+# ---------------------------------------------------------------------------
+# Header
+# ---------------------------------------------------------------------------
+st.title("📊 Sales Chat Assistant")
+st.markdown('<p class="app-subtitle">Upload your sales data and get instant, AI-powered business insights.</p>', unsafe_allow_html=True)
+st.write("")
 
 # --- Session state setup: memory that survives Streamlit's reruns ---
 if "messages" not in st.session_state:
@@ -23,12 +82,11 @@ if "df" not in st.session_state:
     st.session_state.df = None
 if "summary" not in st.session_state:
     st.session_state.summary = None
-
-# --- File upload ---
-uploaded_file = st.file_uploader("Upload your sales file", type=["csv", "xlsx", "xls"])
-
 if "uploaded_filename" not in st.session_state:
     st.session_state.uploaded_filename = None
+
+# --- File upload ---
+uploaded_file = st.file_uploader("Upload your sales file (CSV or Excel)", type=["csv", "xlsx", "xls"])
 
 is_new_file = uploaded_file is not None and uploaded_file.name != st.session_state.uploaded_filename
 
@@ -40,10 +98,9 @@ if is_new_file:
             st.session_state.df = df
             st.session_state.summary = summary
             st.session_state.uploaded_filename = uploaded_file.name
-            st.session_state.messages = []  # reset chat for the new file
+            st.session_state.messages = []
         except ValueError as e:
             st.error(str(e))
-
 
 # --- Show summary + chat only after a file is successfully loaded ---
 if st.session_state.df is not None:
@@ -53,33 +110,33 @@ if st.session_state.df is not None:
     st.subheader("Quick Overview")
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Total Revenue", f"${summary['total_revenue']:,.2f}")
+    col1.metric("💰 Total Revenue", f"${summary['total_revenue']:,.2f}")
 
     top_product_names = ", ".join(item["product"] for item in summary["top_products"][:1])
-    col2.metric("Top Product", top_product_names or "N/A")
+    col2.metric("🏆 Top Product", top_product_names or "N/A")
 
     insight = summary["insight"]
     if insight and insight["type"] == "declining_product":
-        col3.metric("⚠️ Declining", insight["product"], f"{insight['pct_change']}%")
+        col3.metric("⚠️ Declining", insight["product"][:20] + "...", f"{insight['pct_change']}%")
     elif insight:
-        col3.metric("Lowest Seller", insight["product"])
+        col3.metric("📉 Lowest Seller", insight["product"][:20] + "...")
 
-    with st.expander("See top 3 products"):
-        for item in summary["top_products"]:
-            st.write(f"**{item['product']}** — ${item['revenue']:,.2f}")
-
-    with st.expander("Preview your data"):
-        st.dataframe(df.head(20))
+    col_a, col_b = st.columns(2)
+    with col_a:
+        with st.expander("📦 See top 3 products"):
+            for item in summary["top_products"]:
+                st.write(f"**{item['product']}** — ${item['revenue']:,.2f}")
+    with col_b:
+        with st.expander("🔍 Preview your data"):
+            st.dataframe(df.head(20))
 
     st.divider()
     st.subheader("💬 Chat with your data")
 
-    # Display past messages
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Chat input box
     user_input = st.chat_input("Ask a question about your sales data...")
 
     if user_input:
@@ -87,7 +144,6 @@ if st.session_state.df is not None:
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        # Convert our chat history into the format Groq expects
         groq_history = []
         for msg in st.session_state.messages[:-1]:
             groq_history.append({"role": msg["role"], "content": msg["content"]})
@@ -103,4 +159,4 @@ if st.session_state.df is not None:
         st.session_state.messages.append({"role": "assistant", "content": answer})
 
 else:
-    st.info("👆 Upload a sales export file to get started.")
+    st.info("👆 Upload a sales export file above to get started — you'll get an instant summary and can chat with your data.")
