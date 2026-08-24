@@ -323,10 +323,6 @@ if st.session_state.df is not None:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
     if "is_processing" not in st.session_state:
         st.session_state.is_processing = False
 

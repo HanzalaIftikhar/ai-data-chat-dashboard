@@ -175,7 +175,19 @@ def ask_question(df, summary, user_question, chat_history=None):
                     "content": result,
                 })
 
-        return "I wasn't able to finish analyzing that. Could you try rephrasing your question?"
+        # Fallback: force a final answer by explicitly disabling tool use,
+        # instead of omitting tools entirely (which confuses the model and
+        # causes a 400 error when it still tries to call one).
+        final_response = client.chat.completions.create(
+            model=GROQ_MODEL_NAME,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="none",
+        )
+        return (
+            final_response.choices[0].message.content
+            or "I wasn't able to finish analyzing that. Could you try rephrasing your question?"
+        )
 
     except Exception as e:
         logger.error(f"Groq API call failed: {e}")
