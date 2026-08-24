@@ -50,6 +50,14 @@ def run_dataframe_query(df, expression):
     Safely evaluates a pandas expression against the DataFrame.
     Blocks anything that looks like it's trying to do something
     beyond a simple read-only calculation (imports, file access, etc).
+
+    Supports two forms:
+    - A single expression: "df['revenue'].sum()"
+    - Setup statements followed by a final expression, separated by ";":
+      "df['month'] = df['order_date'].dt.to_period('M'); df.groupby('month')['revenue'].sum()"
+      The setup statements run via exec(), then the final part is eval()'d
+      to get the actual return value — since plain eval() can't handle
+      assignment statements on its own.
     """
     forbidden = ["import", "__", "open(", "exec(", "eval(", "os.", "sys.", "subprocess"]
     lowered = expression.lower()
@@ -59,7 +67,13 @@ def run_dataframe_query(df, expression):
     try:
         safe_globals = {"__builtins__": {}}
         safe_locals = {"df": df, "pd": pd}
-        result = eval(expression, safe_globals, safe_locals)
+
+        if ";" in expression:
+            *setup_statements, final_expr = expression.split(";")
+            exec(";".join(setup_statements), safe_globals, safe_locals)
+            result = eval(final_expr.strip(), safe_globals, safe_locals)
+        else:
+            result = eval(expression, safe_globals, safe_locals)
 
         result_str = str(result)
         if len(result_str) > 2000:
@@ -74,6 +88,8 @@ def build_context_prompt(df, summary):
     Gives the AI a quick overview of the dataset, plus instructions
     on when to use the query_dataframe tool for anything precise.
     """
+    column_list = ", ".join(df.columns)
+
     top_products_text = "\n".join(
         f"- {item['product']}: ${item['revenue']:,}"
         for item in summary["top_products"]
@@ -102,8 +118,12 @@ For ANY question that needs a specific number, ranking, filter, or calculation
 that isn't already given below, use the query_dataframe tool to get the exact
 answer from the real data. Do not guess or make up numbers.
 
+Available columns in the data: {column_list}
+Total rows: {len(df)}
+
 QUICK OVERVIEW (already known, no need to query for these):
 Total Revenue: ${summary['total_revenue']:,}
+
 
 Top 3 Products by Revenue:
 {top_products_text}
@@ -129,7 +149,7 @@ def ask_question(df, summary, user_question, chat_history=None):
 
         messages.append({"role": "user", "content": user_question})
 
-        max_iterations = 5
+        max_iterations = 8
 
         for _ in range(max_iterations):
             response = client.chat.completions.create(
@@ -175,19 +195,11 @@ def ask_question(df, summary, user_question, chat_history=None):
                     "content": result,
                 })
 
-        # Fallback: force a final answer by explicitly disabling tool use,
-        # instead of omitting tools entirely (which confuses the model and
-        # causes a 400 error when it still tries to call one).
-        final_response = client.chat.completions.create(
-            model=GROQ_MODEL_NAME,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="none",
-        )
-        return (
-            final_response.choices[0].message.content
-            or "I wasn't able to finish analyzing that. Could you try rephrasing your question?"
-        )
+        # If we've used all iterations, give up gracefully instead of making
+        # another API call — this model doesn't reliably respect tool_choice
+        # "none", so trying to force a tool-less final answer just risks
+        # another error. A local message is guaranteed not to fail.
+        return "That question needed a lot of back-and-forth analysis and I couldn't finish it. Could you try breaking it into a simpler question?"
 
     except Exception as e:
         logger.error(f"Groq API call failed: {e}")
