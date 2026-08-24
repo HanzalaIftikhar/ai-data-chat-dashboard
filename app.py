@@ -70,9 +70,10 @@ st.markdown("""
         border-top: 3px solid #B54834;
     }
 
-    /* Sidebar — subtle color tint instead of plain gray */
+    /* Sidebar — colored accent border instead of a hardcoded tint,
+       so it works correctly in both light and dark mode */
     [data-testid="stSidebar"] {
-        background-color: #F1F7F4;
+        border-right: 2px solid rgba(31,111,84,0.25);
     }
 
     /* Sidebar numbered steps */
