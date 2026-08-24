@@ -323,12 +323,30 @@ if st.session_state.df is not None:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    user_input = st.chat_input("Ask a question about your sales data...")
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-    if user_input:
+    if "is_processing" not in st.session_state:
+        st.session_state.is_processing = False
+
+    user_input = st.chat_input(
+        "Ask a question about your sales data...",
+        disabled=st.session_state.is_processing,
+    )
+
+    # Step 1: naya sawal aaya — save karo, input lock karo, aur turant
+    # rerun karo taake "disabled" state browser tak pohonch jaye, AI call
+    # shuru hone se pehle.
+    if user_input and not st.session_state.is_processing:
         st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.markdown(user_input)
+        st.session_state.is_processing = True
+        st.rerun()
+
+    # Step 2: jo sawal lock ho chuka hai, usay process karo. Upar wala
+    # chat_input is poore run ke doraan already "disabled" render ho chuka hoga.
+    if st.session_state.is_processing:
+        last_question = st.session_state.messages[-1]["content"]
 
         groq_history = []
         for msg in st.session_state.messages[:-1]:
@@ -337,12 +355,13 @@ if st.session_state.df is not None:
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    answer = ask_question(df, summary, user_input, chat_history=groq_history)
+                    answer = ask_question(df, summary, last_question, chat_history=groq_history)
                 except RuntimeError as e:
                     answer = str(e)
-                st.markdown(answer)
 
         st.session_state.messages.append({"role": "assistant", "content": answer})
+        st.session_state.is_processing = False
+        st.rerun()
 
 else:
     st.markdown("""

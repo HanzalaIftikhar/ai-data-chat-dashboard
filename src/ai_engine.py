@@ -7,7 +7,7 @@ from src.config import GROQ_API_KEY, GROQ_MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
-client = Groq(api_key=GROQ_API_KEY)
+client = Groq(api_key=GROQ_API_KEY, timeout=30.0)
 
 # ---------------------------------------------------------------------------
 # Tool definition: this tells the AI "you have a calculator available,
