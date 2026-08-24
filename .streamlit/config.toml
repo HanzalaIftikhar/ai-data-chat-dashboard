@@ -1,0 +1,8 @@
+[theme]
+primaryColor = "#1F6F54"
+backgroundColor = "#FAFAF7"
+secondaryBackgroundColor = "#EFEDE6"
+textColor = "#1C2321"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+headingFont = "Fraunces:https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap"
+codeFont = "'IBM Plex Mono':https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
