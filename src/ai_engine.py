@@ -113,6 +113,8 @@ def build_context_prompt(df, summary):
 You are a business analyst assistant for an e-commerce seller (Shopify/Etsy/Amazon).
 Answer with business context, not just raw numbers — relate numbers to trends,
 comparisons, or possible causes. Keep answers concise and conversational.
+Use plain Markdown formatting only (headers, bold, bullet points, tables) —
+never use raw HTML tags like <br> or <div>.
 
 For general or "how is my business doing" style questions, answer directly
 using the Quick Overview data already provided below — do not query the data
